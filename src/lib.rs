@@ -87,7 +87,10 @@ impl DatetimeSelection {
 
     /// True if the selection is a date
     pub fn date(&self) -> bool {
-        self.eq(&Self::Year) || self.eq(&Self::Month) || self.eq(&Self::Day) || self.eq(&Self::DayOfWeek)
+        self.eq(&Self::Year)
+            || self.eq(&Self::Month)
+            || self.eq(&Self::Day)
+            || self.eq(&Self::DayOfWeek)
     }
 
     /// True if the selection is a time
@@ -174,10 +177,10 @@ impl RealtimeDatetime {
     /// Convert the days, hours, minutes, and seconds of the datetime
     /// into seconds
     pub fn to_seconds(&self) -> u128 {
-        (self.day as u128) * 24 * 60 * 60 +
-            (self.hour as u128) * 60 * 60 +
-            (self.minute as u128) * 60 +
-            (self.second as u128)
+        (self.day as u128) * 24 * 60 * 60
+            + (self.hour as u128) * 60 * 60
+            + (self.minute as u128) * 60
+            + (self.second as u128)
     }
 
     /// Convert the RealtimeDatetime into an rp2040 DateTime
@@ -246,7 +249,7 @@ impl RealtimeDatetime {
                     DayOfWeek::Saturday => DayOfWeek::Sunday,
                     DayOfWeek::Sunday => DayOfWeek::Monday,
                 }
-            },
+            }
             DatetimeSelection::Hour => self.hour = (self.hour + 1) % 24,
             DatetimeSelection::Minute => self.minute = (self.minute + 1) % 60,
             DatetimeSelection::Second => self.second = (self.second + 1) % 60,
@@ -269,7 +272,7 @@ impl RealtimeDatetime {
                     DayOfWeek::Saturday => DayOfWeek::Friday,
                     DayOfWeek::Sunday => DayOfWeek::Saturday,
                 }
-            },
+            }
             DatetimeSelection::Hour => self.hour = self.hour.checked_sub(1).unwrap_or(23),
             DatetimeSelection::Minute => self.minute = self.minute.checked_sub(1).unwrap_or(59),
             DatetimeSelection::Second => self.second = self.second.checked_sub(1).unwrap_or(59),
@@ -279,7 +282,7 @@ impl RealtimeDatetime {
 
 impl Sub for RealtimeDatetime {
     type Output = (u8, u8, u8);
-    
+
     // TODO: Fix ths to work across day boundaries.  I think my current
     // implementation breaks down across date boundaries, but I'm not
     // planning on using this over those boundaries so I don't think it
@@ -289,10 +292,6 @@ impl Sub for RealtimeDatetime {
         let hours = seconds / 60 / 60;
         let minutes = (seconds - hours * 60 * 60) / 60;
         let seconds = seconds % 60;
-        (
-            hours as u8,
-            minutes as u8,
-            seconds as u8,
-        )
+        (hours as u8, minutes as u8, seconds as u8)
     }
 }

@@ -40,14 +40,23 @@ mod app {
     use super::*;
     use core::mem::MaybeUninit;
 
-    use bsp::hal::{clocks::init_clocks_and_plls, gpio::Pins, sio::Sio, watchdog::Watchdog, adc::{Adc, AdcPin}};
+    use bsp::hal::{
+        adc::{Adc, AdcPin},
+        clocks::init_clocks_and_plls,
+        gpio::Pins,
+        sio::Sio,
+        watchdog::Watchdog,
+    };
     use embedded_hal::digital::OutputPin;
     use embedded_hal_02::adc::OneShot;
     use fugit::RateExtU32;
     use rp_pico::{
         self as bsp,
         hal::{
-            adc::TempSense, gpio::Interrupt, rtc::{DateTimeFilter, RealTimeClock}, I2C
+            adc::TempSense,
+            gpio::Interrupt,
+            rtc::{DateTimeFilter, RealTimeClock},
+            I2C,
         },
     };
 
@@ -61,7 +70,13 @@ mod app {
 
     use rtic_monotonics::rp2040::prelude::*;
 
-    use watch::{peripherals::{AlarmButton, BackButton, BatteryReader, DecrementButton, Display, EditButton, ForwardButton, IncrementButton, Pin23, PowerSwitch, VibrationMotor}, AlarmSelection, DatetimeSelection, RealtimeDatetime, State};
+    use watch::{
+        peripherals::{
+            AlarmButton, BackButton, BatteryReader, DecrementButton, Display, EditButton,
+            ForwardButton, IncrementButton, Pin23, PowerSwitch, VibrationMotor,
+        },
+        AlarmSelection, DatetimeSelection, RealtimeDatetime, State,
+    };
 
     const EXTERNAL_XTAL_FREQ_HZ: u32 = 12_000_000u32;
 
@@ -140,7 +155,7 @@ mod app {
             HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE);
         }
 
-        Mono::start(ctx.device.TIMER, &mut ctx.device.RESETS);
+        Mono::start(ctx.device.TIMER, &ctx.device.RESETS);
 
         let mut watchdog = Watchdog::new(ctx.device.WATCHDOG);
 
@@ -185,7 +200,9 @@ mod app {
             clocks.rtc_clock,
             &mut ctx.device.RESETS,
             #[allow(static_mut_refs)]
-            unsafe { REFERENCE_DATETIME.to_datetime() },
+            unsafe {
+                REFERENCE_DATETIME.to_datetime()
+            },
         )
         .unwrap();
 
@@ -354,9 +371,12 @@ mod app {
                     )
                     .draw(&mut display)
                     .unwrap();
-                },
+                }
                 State::EditTime => {
-                    let selection = ctx.shared.reference_selection.lock(|selection| selection.unwrap_or(DatetimeSelection::Year));
+                    let selection = ctx
+                        .shared
+                        .reference_selection
+                        .lock(|selection| selection.unwrap_or(DatetimeSelection::Year));
                     let reference_time = ctx.shared.reference_time.lock(|time| *time);
                     if selection.date() {
                         // Display Date
@@ -380,7 +400,7 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                             DatetimeSelection::Month => {
                                 Text::with_baseline(
                                     "      ^^^     ",
@@ -390,7 +410,7 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                             DatetimeSelection::Day => {
                                 Text::with_baseline(
                                     "   ^^^        ",
@@ -400,7 +420,7 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                             _ => {
                                 Text::with_baseline(
                                     "^^            ",
@@ -410,7 +430,7 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                         }
                     } else {
                         // Display Time
@@ -434,7 +454,7 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                             DatetimeSelection::Minute => {
                                 Text::with_baseline(
                                     "   ^^   ",
@@ -444,7 +464,7 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                             _ => {
                                 Text::with_baseline(
                                     "      ^^",
@@ -454,21 +474,23 @@ mod app {
                                 )
                                 .draw(&mut display)
                                 .unwrap();
-                            },
+                            }
                         }
                     }
-                },
+                }
                 State::SettingAlarm => {
                     let alarm_time = ctx.shared.alarm_time.lock(|alarm_time| *alarm_time);
-                    let alarm_selection = ctx.shared.alarm_selection.lock(|selection| selection.unwrap_or(AlarmSelection::Hour));
+                    let alarm_selection = ctx
+                        .shared
+                        .alarm_selection
+                        .lock(|selection| selection.unwrap_or(AlarmSelection::Hour));
                     // Display Alarm
                     Text::with_baseline(
                         format!(
                             "{:02}:{:02}:{:02}",
-                            alarm_time.0,
-                            alarm_time.1,
-                            alarm_time.2,
-                        ).as_str(),
+                            alarm_time.0, alarm_time.1, alarm_time.2,
+                        )
+                        .as_str(),
                         Point::zero(),
                         text_style,
                         Baseline::Top,
@@ -487,7 +509,7 @@ mod app {
                             )
                             .draw(&mut display)
                             .unwrap();
-                        },
+                        }
                         AlarmSelection::Minute => {
                             Text::with_baseline(
                                 "   ^^   ",
@@ -497,7 +519,7 @@ mod app {
                             )
                             .draw(&mut display)
                             .unwrap();
-                        },
+                        }
                         _ => {
                             Text::with_baseline(
                                 "      ^^",
@@ -507,26 +529,28 @@ mod app {
                             )
                             .draw(&mut display)
                             .unwrap();
-                        },
+                        }
                     }
-                },
+                }
                 State::Alarm => {
                     // Display time remaining in the alarm
-                    let remaining_time = ctx.shared.alarm_start.lock(|start| current_time - start.unwrap_or(current_time));
+                    let remaining_time = ctx
+                        .shared
+                        .alarm_start
+                        .lock(|start| current_time - start.unwrap_or(current_time));
                     Text::with_baseline(
                         format!(
                             "{:02}:{:02}:{:02}",
-                            remaining_time.0,
-                            remaining_time.1,
-                            remaining_time.2
-                        ).as_str(),
+                            remaining_time.0, remaining_time.1, remaining_time.2
+                        )
+                        .as_str(),
                         Point::zero(),
                         text_style,
                         Baseline::Middle,
                     )
                     .draw(&mut display)
                     .unwrap();
-                },
+                }
                 State::AlarmTriggered => {
                     // Display text that the alarm has triggered
                     Text::with_baseline(
@@ -537,7 +561,7 @@ mod app {
                     )
                     .draw(&mut display)
                     .unwrap();
-                },
+                }
             }
 
             if state == State::AlarmTriggered {
@@ -552,7 +576,8 @@ mod app {
                         "{}C         {}V",
                         ctx.shared.temperature.lock(|temp| *temp),
                         ctx.shared.battery_voltage.lock(|batt| *batt),
-                    ).as_str(),
+                    )
+                    .as_str(),
                     Point::zero(),
                     text_style,
                     Baseline::Bottom,
@@ -568,7 +593,7 @@ mod app {
     }
 
     /// Interrupt triggered whenever a button is pressed.
-    /// 
+    ///
     /// This can mean incrementing a value on screen or showing an alarm, etc.
     #[task(
         shared = [
@@ -606,113 +631,196 @@ mod app {
             ctx.shared.decrement_button,
             ctx.shared.edit_button,
             ctx.shared.alarm_button,
-        ).lock(|
-            alarm_time,
-            alarm_selection,
-            reference_time,
-            reference_selection,
-            alarm_start,
-            rtc,
-            state,
-            power_switch,
-            forward_button,
-            back_button,
-            increment_button,
-            decrement_button,
-            edit_button,
-            alarm_button,
-        | {
-            // Power state transitions
-            if power_switch.interrupt_status(Interrupt::EdgeHigh) {
-                disable_button_interrupts::spawn().unwrap();
-                *state = State::Time;
-                power_switch.clear_interrupt(Interrupt::EdgeHigh);
-                power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                power_switch.set_interrupt_enabled(Interrupt::EdgeLow, false);
-                power_switch_cooldown::spawn().unwrap();
-                return;
-            } else if power_switch.interrupt_status(Interrupt::EdgeLow) {
-                enable_button_interrupts::spawn().unwrap();
-                *state = State::Sleep;
-                power_switch.clear_interrupt(Interrupt::EdgeLow);
-                power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                power_switch.set_interrupt_enabled(Interrupt::EdgeLow, false);
-                power_switch_cooldown::spawn().unwrap();
-                return;
-            }
-
-            // Was the forward button pressed
-            if forward_button.interrupt_status(Interrupt::EdgeHigh) {
-                match *state {
-                    State::Time => *state = State::Alarm,
-                    State::EditTime => {
-                        if let Some(selection) = *reference_selection {
-                            *reference_selection = Some(selection.next());
-                        } else {
-                            *reference_selection = Some(DatetimeSelection::Year);
-                        }
-                    },
-                    State::Alarm => *state = State::Time,
-                    State::SettingAlarm => {
-                        if let Some(selection) = *alarm_selection {
-                            *alarm_selection = Some(selection.next());
-                        } else {
-                            *alarm_selection = Some(AlarmSelection::Hour);
-                        }
-                    },
-                    State::AlarmTriggered => *state = State::Time,
-                    _ => (),
-                }
-                forward_button.clear_interrupt(Interrupt::EdgeHigh);
-                forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                debounce_forward::spawn().unwrap();
-                return;
-            }
-
-            // Was the back button pressed
-            if back_button.interrupt_status(Interrupt::EdgeHigh) {
-                match *state {
-                    State::Time => *state = State::Alarm,
-                    State::EditTime => {
-                        if let Some(selection) = *reference_selection {
-                            *reference_selection = Some(selection.last());
-                        } else {
-                            *reference_selection = Some(DatetimeSelection::Year);
-                        }
-                    },
-                    State::Alarm => *state = State::Time,
-                    State::SettingAlarm => {
-                        if let Some(selection) = *alarm_selection {
-                            *alarm_selection = Some(selection.last());
-                        } else {
-                            *alarm_selection = Some(AlarmSelection::Hour);
-                        }
-                    },
-                    State::AlarmTriggered => *state = State::Alarm,
-                    _ => (),
-                }
-                back_button.clear_interrupt(Interrupt::EdgeHigh);
-                back_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                debounce_back::spawn().unwrap();
-                return;
-            }
-
-            // Was the edit button pressed
-            if edit_button.interrupt_status(Interrupt::EdgeHigh) {
-                match *state {
-                    State::Time => *state = State::EditTime,
-                    State::EditTime => {
-                        // Update the current time
+        )
+            .lock(
+                |alarm_time,
+                 alarm_selection,
+                 reference_time,
+                 reference_selection,
+                 alarm_start,
+                 rtc,
+                 state,
+                 power_switch,
+                 forward_button,
+                 back_button,
+                 increment_button,
+                 decrement_button,
+                 edit_button,
+                 alarm_button| {
+                    // Power state transitions
+                    if power_switch.interrupt_status(Interrupt::EdgeHigh) {
+                        disable_button_interrupts::spawn().unwrap();
                         *state = State::Time;
-                        rtc.clear_interrupt();
-                        rtc.disable_alarm();
-                        rtc.disable_interrupt();
-                        rtc.set_datetime(reference_time.to_datetime()).unwrap();
-                        unsafe { REFERENCE_DATETIME = *reference_time };
-                    },
-                    State::Alarm => *state = State::SettingAlarm,
-                    State::SettingAlarm => {
+                        power_switch.clear_interrupt(Interrupt::EdgeHigh);
+                        power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        power_switch.set_interrupt_enabled(Interrupt::EdgeLow, false);
+                        power_switch_cooldown::spawn().unwrap();
+                        return;
+                    } else if power_switch.interrupt_status(Interrupt::EdgeLow) {
+                        enable_button_interrupts::spawn().unwrap();
+                        *state = State::Sleep;
+                        power_switch.clear_interrupt(Interrupt::EdgeLow);
+                        power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        power_switch.set_interrupt_enabled(Interrupt::EdgeLow, false);
+                        power_switch_cooldown::spawn().unwrap();
+                        return;
+                    }
+
+                    // Was the forward button pressed
+                    if forward_button.interrupt_status(Interrupt::EdgeHigh) {
+                        match *state {
+                            State::Time => *state = State::Alarm,
+                            State::EditTime => {
+                                if let Some(selection) = *reference_selection {
+                                    *reference_selection = Some(selection.next());
+                                } else {
+                                    *reference_selection = Some(DatetimeSelection::Year);
+                                }
+                            }
+                            State::Alarm => *state = State::Time,
+                            State::SettingAlarm => {
+                                if let Some(selection) = *alarm_selection {
+                                    *alarm_selection = Some(selection.next());
+                                } else {
+                                    *alarm_selection = Some(AlarmSelection::Hour);
+                                }
+                            }
+                            State::AlarmTriggered => *state = State::Time,
+                            _ => (),
+                        }
+                        forward_button.clear_interrupt(Interrupt::EdgeHigh);
+                        forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        debounce_forward::spawn().unwrap();
+                        return;
+                    }
+
+                    // Was the back button pressed
+                    if back_button.interrupt_status(Interrupt::EdgeHigh) {
+                        match *state {
+                            State::Time => *state = State::Alarm,
+                            State::EditTime => {
+                                if let Some(selection) = *reference_selection {
+                                    *reference_selection = Some(selection.last());
+                                } else {
+                                    *reference_selection = Some(DatetimeSelection::Year);
+                                }
+                            }
+                            State::Alarm => *state = State::Time,
+                            State::SettingAlarm => {
+                                if let Some(selection) = *alarm_selection {
+                                    *alarm_selection = Some(selection.last());
+                                } else {
+                                    *alarm_selection = Some(AlarmSelection::Hour);
+                                }
+                            }
+                            State::AlarmTriggered => *state = State::Alarm,
+                            _ => (),
+                        }
+                        back_button.clear_interrupt(Interrupt::EdgeHigh);
+                        back_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        debounce_back::spawn().unwrap();
+                        return;
+                    }
+
+                    // Was the edit button pressed
+                    if edit_button.interrupt_status(Interrupt::EdgeHigh) {
+                        match *state {
+                            State::Time => *state = State::EditTime,
+                            State::EditTime => {
+                                // Update the current time
+                                *state = State::Time;
+                                rtc.clear_interrupt();
+                                rtc.disable_alarm();
+                                rtc.disable_interrupt();
+                                rtc.set_datetime(reference_time.to_datetime()).unwrap();
+                                unsafe { REFERENCE_DATETIME = *reference_time };
+                            }
+                            State::Alarm => *state = State::SettingAlarm,
+                            State::SettingAlarm => {
+                                *state = State::Alarm;
+                                rtc.clear_interrupt();
+                                rtc.schedule_alarm(DateTimeFilter {
+                                    year: None,
+                                    month: None,
+                                    day: None,
+                                    day_of_week: None,
+                                    hour: Some(alarm_time.0),
+                                    minute: Some(alarm_time.1),
+                                    second: Some(alarm_time.2),
+                                });
+                                rtc.enable_interrupt();
+                            }
+                            State::AlarmTriggered => *state = State::SettingAlarm,
+                            _ => (),
+                        }
+                        edit_button.clear_interrupt(Interrupt::EdgeHigh);
+                        edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        debounce_edit::spawn().unwrap();
+                        return;
+                    }
+
+                    // Was the increment button pressed
+                    if increment_button.interrupt_status(Interrupt::EdgeHigh) {
+                        match *state {
+                            State::EditTime => {
+                                let selection =
+                                    reference_selection.unwrap_or(DatetimeSelection::Year);
+                                reference_time.increment(selection);
+                            }
+                            State::SettingAlarm => {
+                                let selection = alarm_selection.unwrap_or(AlarmSelection::Hour);
+                                match selection {
+                                    AlarmSelection::Hour => alarm_time.0 = (alarm_time.0 + 1) % 24,
+                                    AlarmSelection::Minute => {
+                                        alarm_time.1 = (alarm_time.1 + 1) % 60
+                                    }
+                                    AlarmSelection::Second => {
+                                        alarm_time.2 = (alarm_time.2 + 1) % 60
+                                    }
+                                }
+                            }
+                            _ => (),
+                        }
+                        increment_button.clear_interrupt(Interrupt::EdgeHigh);
+                        increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        debounce_increment::spawn().unwrap();
+                        return;
+                    }
+
+                    // Was the decrement button pressed
+                    if decrement_button.interrupt_status(Interrupt::EdgeHigh) {
+                        match *state {
+                            State::EditTime => {
+                                let selection =
+                                    reference_selection.unwrap_or(DatetimeSelection::Year);
+                                reference_time.decrement(selection);
+                            }
+                            State::SettingAlarm => {
+                                let selection = alarm_selection.unwrap_or(AlarmSelection::Hour);
+                                match selection {
+                                    AlarmSelection::Hour => {
+                                        alarm_time.0 = alarm_time.0.checked_sub(1).unwrap_or(23)
+                                    }
+                                    AlarmSelection::Minute => {
+                                        alarm_time.1 = alarm_time.1.checked_sub(1).unwrap_or(59)
+                                    }
+                                    AlarmSelection::Second => {
+                                        alarm_time.2 = alarm_time.2.checked_sub(1).unwrap_or(59)
+                                    }
+                                }
+                            }
+                            _ => (),
+                        }
+                        decrement_button.clear_interrupt(Interrupt::EdgeHigh);
+                        decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        debounce_decrement::spawn().unwrap();
+                        return;
+                    }
+
+                    // Was the alarm button pressed
+                    if alarm_button.interrupt_status(Interrupt::EdgeHigh) {
                         *state = State::Alarm;
+                        *alarm_start = Some(rtc.now().unwrap().into());
                         rtc.clear_interrupt();
                         rtc.schedule_alarm(DateTimeFilter {
                             year: None,
@@ -724,83 +832,12 @@ mod app {
                             second: Some(alarm_time.2),
                         });
                         rtc.enable_interrupt();
-                    },
-                    State::AlarmTriggered => *state = State::SettingAlarm,
-                    _ => (),
-                }
-                edit_button.clear_interrupt(Interrupt::EdgeHigh);
-                edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                debounce_edit::spawn().unwrap();
-                return;
-            }
-
-            // Was the increment button pressed
-            if increment_button.interrupt_status(Interrupt::EdgeHigh) {
-                match *state {
-                    State::EditTime => {
-                        let selection = reference_selection.unwrap_or(DatetimeSelection::Year);
-                        reference_time.increment(selection);
-                    },
-                    State::SettingAlarm => {
-                        let selection = alarm_selection.unwrap_or(AlarmSelection::Hour);
-                        match selection {
-                            AlarmSelection::Hour => alarm_time.0 = (alarm_time.0 + 1) % 24,
-                            AlarmSelection::Minute => alarm_time.1 = (alarm_time.1 + 1) % 60,
-                            AlarmSelection::Second => alarm_time.2 = (alarm_time.2 + 1) % 60,
-                        }
-                    },
-                    _ => (),
-                }
-                increment_button.clear_interrupt(Interrupt::EdgeHigh);
-                increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                debounce_increment::spawn().unwrap();
-                return;
-            }
-
-            // Was the decrement button pressed
-            if decrement_button.interrupt_status(Interrupt::EdgeHigh) {
-                match *state {
-                    State::EditTime => {
-                        let selection = reference_selection.unwrap_or(DatetimeSelection::Year);
-                        reference_time.decrement(selection);
-                    },
-                    State::SettingAlarm => {
-                        let selection = alarm_selection.unwrap_or(AlarmSelection::Hour);
-                        match selection {
-                            AlarmSelection::Hour => alarm_time.0 = alarm_time.0.checked_sub(1).unwrap_or(23),
-                            AlarmSelection::Minute => alarm_time.1 = alarm_time.1.checked_sub(1).unwrap_or(59),
-                            AlarmSelection::Second => alarm_time.2 = alarm_time.2.checked_sub(1).unwrap_or(59),
-                        }
-                    },
-                    _ => (),
-                }
-                decrement_button.clear_interrupt(Interrupt::EdgeHigh);
-                decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                debounce_decrement::spawn().unwrap();
-                return;
-            }
-
-            // Was the alarm button pressed
-            if alarm_button.interrupt_status(Interrupt::EdgeHigh) {
-                *state = State::Alarm;
-                *alarm_start = Some(rtc.now().unwrap().into());
-                rtc.clear_interrupt();
-                rtc.schedule_alarm(DateTimeFilter {
-                    year: None,
-                    month: None,
-                    day: None,
-                    day_of_week: None,
-                    hour: Some(alarm_time.0),
-                    minute: Some(alarm_time.1),
-                    second: Some(alarm_time.2),
-                });
-                rtc.enable_interrupt();
-                alarm_button.clear_interrupt(Interrupt::EdgeHigh);
-                alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-                debounce_alarm::spawn().unwrap();
-                return;
-            }
-        });
+                        alarm_button.clear_interrupt(Interrupt::EdgeHigh);
+                        alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                        debounce_alarm::spawn().unwrap();
+                    }
+                },
+            );
     }
 
     /// Read the temperature and battery voltage every once in a while if we aren't sleeping
@@ -825,10 +862,7 @@ mod app {
             let battery_level = ctx.local.adc.read(ctx.local.battery_reader).unwrap();
             ctx.local.pin23.set_low().unwrap();
 
-            (
-                ctx.shared.temperature,
-                ctx.shared.battery_voltage,
-            ).lock(|temp, batt_level| {
+            (ctx.shared.temperature, ctx.shared.battery_voltage).lock(|temp, batt_level| {
                 *temp = adc_to_temperature(temperature);
                 *batt_level = adc_to_voltage(battery_level);
             });
@@ -842,10 +876,7 @@ mod app {
         binds = RTC_IRQ
     )]
     fn alarm_interrupt(ctx: alarm_interrupt::Context) {
-        (
-            ctx.shared.rtc,
-            ctx.shared.state,
-        ).lock(|rtc, state| {
+        (ctx.shared.rtc, ctx.shared.state).lock(|rtc, state| {
             rtc.clear_interrupt();
             rtc.disable_interrupt();
             rtc.disable_alarm();
@@ -876,21 +907,22 @@ mod app {
             ctx.shared.decrement_button,
             ctx.shared.edit_button,
             ctx.shared.alarm_button,
-        ).lock(|
-            forward_button,
-            back_button,
-            increment_button,
-            decrement_button,
-            edit_button,
-            alarm_button
-        | {
-            forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-            back_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-            increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-            decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-            edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-            alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
-        });
+        )
+            .lock(
+                |forward_button,
+                 back_button,
+                 increment_button,
+                 decrement_button,
+                 edit_button,
+                 alarm_button| {
+                    forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                    back_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                    increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                    decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                    edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                    alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+                },
+            );
     }
 
     /// Enable all button interrupts
@@ -913,21 +945,22 @@ mod app {
             ctx.shared.decrement_button,
             ctx.shared.edit_button,
             ctx.shared.alarm_button,
-        ).lock(|
-            forward_button,
-            back_button,
-            increment_button,
-            decrement_button,
-            edit_button,
-            alarm_button,
-        | {
-            forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
-            back_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
-            increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
-            decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
-            edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
-            alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
-        });
+        )
+            .lock(
+                |forward_button,
+                 back_button,
+                 increment_button,
+                 decrement_button,
+                 edit_button,
+                 alarm_button| {
+                    forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+                    back_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+                    increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+                    decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+                    edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+                    alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+                },
+            );
     }
 
     /// Software task to debounce the power switch

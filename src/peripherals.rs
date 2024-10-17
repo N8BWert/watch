@@ -4,9 +4,15 @@
 
 use rp_pico::{
     hal::{
-        adc::AdcPin, gpio::{
-            bank0::{Gpio0, Gpio10, Gpio11, Gpio12, Gpio13, Gpio14, Gpio15, Gpio16, Gpio18, Gpio19, Gpio23, Gpio26}, FunctionI2C, FunctionSio, Pin, PullDown, PullNone, PullUp, SioInput, SioOutput
-        }, I2C
+        adc::AdcPin,
+        gpio::{
+            bank0::{
+                Gpio0, Gpio10, Gpio11, Gpio12, Gpio13, Gpio14, Gpio15, Gpio16, Gpio18, Gpio19,
+                Gpio23, Gpio26,
+            },
+            FunctionI2C, FunctionSio, Pin, PullDown, PullNone, PullUp, SioInput, SioOutput,
+        },
+        I2C,
     },
     pac::I2C1,
 };
