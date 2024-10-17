@@ -20,6 +20,17 @@ static HEAP: Heap = Heap::empty();
 extern crate alloc;
 use alloc::format;
 
+/// Convert a measured adc value to a voltage
+pub fn adc_to_voltage(adc_value: u16) -> f32 {
+    3.3 * (adc_value as f32) / 65535.0
+}
+
+/// Convert a measured adc value to a temperature measurement (C)
+pub fn adc_to_temperature(adc_value: u16) -> f32 {
+    let voltage = adc_to_voltage(adc_value);
+    27.0 - (voltage - 0.706) / 0.001721
+}
+
 #[rtic::app(
     device = rp_pico::hal::pac,
     peripherals = true,
@@ -86,9 +97,9 @@ mod app {
         // The currently selected value in the reference time to edit
         reference_selection: Option<DatetimeSelection>,
         // The current temperature measurement
-        temperature: u16,
+        temperature: f32,
         // The current battery level
-        battery_level: u16,
+        battery_voltage: f32,
 
         // The switch used to turn on and off the watch
         power_switch: PowerSwitch,
@@ -226,8 +237,8 @@ mod app {
                 reference_time: unsafe { REFERENCE_DATETIME },
                 reference_selection: None,
                 alarm_start: None,
-                temperature,
-                battery_level,
+                temperature: adc_to_temperature(temperature),
+                battery_voltage: adc_to_voltage(battery_level),
                 forward_button,
                 back_button,
                 increment_button,
@@ -298,7 +309,7 @@ mod app {
             reference_time,
             reference_selection,
             temperature,
-            battery_level,
+            battery_voltage,
         ],
         local = [
             vibration_motor
@@ -536,13 +547,11 @@ mod app {
             }
 
             if state != State::Sleep {
-                // TODO: Map Temperature From ADC Counts -> Temperatures
-                // TODO: Map Battery ADC Counts -> Battery Charge
                 Text::with_baseline(
                     format!(
-                        "{}         {}",
+                        "{}C         {}V",
                         ctx.shared.temperature.lock(|temp| *temp),
-                        ctx.shared.battery_level.lock(|batt| *batt),
+                        ctx.shared.battery_voltage.lock(|batt| *batt),
                     ).as_str(),
                     Point::zero(),
                     text_style,
@@ -799,7 +808,7 @@ mod app {
         shared = [
             state,
             temperature,
-            battery_level,
+            battery_voltage,
         ],
         local = [
             pin23,
@@ -818,10 +827,10 @@ mod app {
 
             (
                 ctx.shared.temperature,
-                ctx.shared.battery_level,
+                ctx.shared.battery_voltage,
             ).lock(|temp, batt_level| {
-                *temp = temperature;
-                *batt_level = battery_level;
+                *temp = adc_to_temperature(temperature);
+                *batt_level = adc_to_voltage(battery_level);
             });
         }
     }

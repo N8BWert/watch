@@ -59,6 +59,7 @@ pub enum DatetimeSelection {
 }
 
 impl DatetimeSelection {
+    /// Switch to the next datetime selection
     pub fn next(self) -> Self {
         match self {
             Self::Year => Self::Month,
@@ -71,6 +72,7 @@ impl DatetimeSelection {
         }
     }
 
+    /// Switch to the previous datetime selection
     pub fn last(self) -> Self {
         match self {
             Self::Year => Self::Second,
@@ -103,6 +105,7 @@ pub enum AlarmSelection {
 }
 
 impl AlarmSelection {
+    /// Switch to the next alarm selection
     pub fn next(self) -> Self {
         match self {
             Self::Hour => Self::Minute,
@@ -111,6 +114,7 @@ impl AlarmSelection {
         }
     }
 
+    /// Switch to the last alarm selection
     pub fn last(self) -> Self {
         match self {
             Self::Hour => Self::Second,
@@ -120,6 +124,8 @@ impl AlarmSelection {
     }
 }
 
+/// An local wrapper for the rp2040 DateTime that allows me to
+/// implement various methods
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RealtimeDatetime {
     pub year: u16,
@@ -152,6 +158,7 @@ impl From<DateTime> for RealtimeDatetime {
 }
 
 impl RealtimeDatetime {
+    /// Create a new default realtime datetime
     pub const fn new() -> Self {
         Self {
             year: 2024,
@@ -164,6 +171,8 @@ impl RealtimeDatetime {
         }
     }
 
+    /// Convert the days, hours, minutes, and seconds of the datetime
+    /// into seconds
     pub fn to_seconds(&self) -> u128 {
         (self.day as u128) * 24 * 60 * 60 +
             (self.hour as u128) * 60 * 60 +
@@ -171,6 +180,7 @@ impl RealtimeDatetime {
             (self.second as u128)
     }
 
+    /// Convert the RealtimeDatetime into an rp2040 DateTime
     pub fn to_datetime(&self) -> DateTime {
         DateTime {
             year: self.year,
@@ -183,6 +193,7 @@ impl RealtimeDatetime {
         }
     }
 
+    /// Get a string representing the date of the RealtimeDatetime
     pub fn date(&self) -> String {
         format!(
             "{} {:02} {} {:04}",
@@ -214,10 +225,12 @@ impl RealtimeDatetime {
         )
     }
 
+    /// Get the time represented by the RealtimeDatetime
     pub fn time(&self) -> String {
         format!("{:02}:{:02}:{:02}", self.hour, self.minute, self.second,)
     }
 
+    /// Increment the specified selection for the RealtimeDatetime
     pub fn increment(&mut self, selection: DatetimeSelection) {
         match selection {
             DatetimeSelection::Year => self.year += 1,
@@ -240,6 +253,7 @@ impl RealtimeDatetime {
         }
     }
 
+    /// Decrease the specified selection for the RealtimeDatetime
     pub fn decrement(&mut self, selection: DatetimeSelection) {
         match selection {
             DatetimeSelection::Year => self.year = self.year.wrapping_sub(1),
