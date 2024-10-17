@@ -29,12 +29,14 @@ mod app {
     use super::*;
     use core::mem::MaybeUninit;
 
-    use bsp::hal::{clocks::init_clocks_and_plls, gpio::Pins, sio::Sio, watchdog::Watchdog};
+    use bsp::hal::{clocks::init_clocks_and_plls, gpio::Pins, sio::Sio, watchdog::Watchdog, adc::{Adc, AdcPin}};
+    use embedded_hal::digital::OutputPin;
+    use embedded_hal_02::adc::OneShot;
     use fugit::RateExtU32;
     use rp_pico::{
         self as bsp,
         hal::{
-            gpio::Interrupt, rtc::{DateTimeFilter, RealTimeClock}, I2C
+            adc::TempSense, gpio::Interrupt, rtc::{DateTimeFilter, RealTimeClock}, I2C
         },
     };
 
@@ -48,7 +50,7 @@ mod app {
 
     use rtic_monotonics::rp2040::prelude::*;
 
-    use watch::{peripherals::{AlarmButton, BackButton, DecrementButton, Display, EditButton, ForwardButton, IncrementButton, PowerSwitch}, AlarmSelection, DatetimeSelection, RealtimeDatetime, State};
+    use watch::{peripherals::{AlarmButton, BackButton, BatteryReader, DecrementButton, Display, EditButton, ForwardButton, IncrementButton, Pin23, PowerSwitch, VibrationMotor}, AlarmSelection, DatetimeSelection, RealtimeDatetime, State};
 
     const EXTERNAL_XTAL_FREQ_HZ: u32 = 12_000_000u32;
 
@@ -79,8 +81,15 @@ mod app {
         alarm_selection: Option<AlarmSelection>,
         // The most recently stored value for the reference clock
         reference_time: RealtimeDatetime,
+        // The time the most recent alarm was started
+        alarm_start: Option<RealtimeDatetime>,
         // The currently selected value in the reference time to edit
         reference_selection: Option<DatetimeSelection>,
+        // The current temperature measurement
+        temperature: u16,
+        // The current battery level
+        battery_level: u16,
+
         // The switch used to turn on and off the watch
         power_switch: PowerSwitch,
         // The forward button to toggle through the states of the watch
@@ -101,7 +110,16 @@ mod app {
 
     #[local]
     struct Local {
-
+        // The vibration motor that is triggered when an alarm goes off
+        vibration_motor: VibrationMotor,
+        // Pin 23 used to put the pico into the correct power mode for ADC measurements
+        pin23: Pin23,
+        // The ADC
+        adc: Adc,
+        // The temperature sensor
+        temperature_sensor: TempSense,
+        // The battery voltage reader
+        battery_reader: BatteryReader,
     }
 
     #[init]
@@ -160,6 +178,11 @@ mod app {
         )
         .unwrap();
 
+        let mut adc = Adc::new(ctx.device.ADC, &mut ctx.device.RESETS);
+        let mut pin23 = pins.gpio23.into_push_pull_output();
+        let mut temperature_sensor = adc.take_temp_sensor().unwrap();
+        let mut battery_reader = AdcPin::new(pins.gpio26.into_floating_input()).unwrap();
+
         // Use pin0 as a power switch to switch the device between sleep and operations mode
         let power_switch = pins.gpio0.into_pull_down_input();
         power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, true);
@@ -183,6 +206,14 @@ mod app {
         let alarm_button = pins.gpio15.into_pull_down_input();
         alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
 
+        let vibration_motor = pins.gpio16.into_push_pull_output();
+
+        // Take the initial measurements
+        pin23.set_high().unwrap();
+        let temperature = adc.read(&mut temperature_sensor).unwrap();
+        let battery_level = adc.read(&mut battery_reader).unwrap();
+        pin23.set_low().unwrap();
+
         initialize_display::spawn().ok();
 
         (
@@ -194,6 +225,9 @@ mod app {
                 alarm_selection: None,
                 reference_time: unsafe { REFERENCE_DATETIME },
                 reference_selection: None,
+                alarm_start: None,
+                temperature,
+                battery_level,
                 forward_button,
                 back_button,
                 increment_button,
@@ -202,7 +236,13 @@ mod app {
                 edit_button,
                 alarm_button,
             },
-            Local {},
+            Local {
+                vibration_motor,
+                pin23,
+                adc,
+                temperature_sensor,
+                battery_reader,
+            },
         )
     }
 
@@ -248,7 +288,19 @@ mod app {
 
     /// Visualization loop that actually updates the information on the OLED Display
     #[task(
-        shared = [rtc, display, state, alarm_time],
+        shared = [
+            rtc,
+            display,
+            state,
+            alarm_time,
+            alarm_selection,
+            alarm_start,
+            reference_time,
+            reference_selection
+        ],
+        local = [
+            vibration_motor
+        ],
         priority = 1
     )]
     async fn display_time(mut ctx: display_time::Context) {
@@ -266,7 +318,8 @@ mod app {
                 .text_color(BinaryColor::On)
                 .build();
 
-            match ctx.shared.state.lock(|state| *state) {
+            let state = ctx.shared.state.lock(|state| *state);
+            match state {
                 State::Sleep => display.clear(BinaryColor::Off).unwrap(),
                 State::Time => {
                     // Display Date
@@ -290,28 +343,170 @@ mod app {
                     .unwrap();
                 },
                 State::EditTime => {
-                    todo!();
+                    let selection = ctx.shared.reference_selection.lock(|selection| selection.unwrap_or(DatetimeSelection::Year));
+                    let reference_time = ctx.shared.reference_time.lock(|time| *time);
+                    if selection.date() {
+                        // Display Date
+                        Text::with_baseline(
+                            reference_time.date().as_str(),
+                            Point::zero(),
+                            text_style,
+                            Baseline::Top,
+                        )
+                        .draw(&mut display)
+                        .unwrap();
+
+                        // Display Selector
+                        match selection {
+                            DatetimeSelection::Year => {
+                                Text::with_baseline(
+                                    "          ^^^^",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                            DatetimeSelection::Month => {
+                                Text::with_baseline(
+                                    "      ^^^     ",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                            DatetimeSelection::Day => {
+                                Text::with_baseline(
+                                    "   ^^^        ",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                            _ => {
+                                Text::with_baseline(
+                                    "^^            ",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                        }
+                    } else {
+                        // Display Time
+                        Text::with_baseline(
+                            reference_time.time().as_str(),
+                            Point::zero(),
+                            text_style,
+                            Baseline::Top,
+                        )
+                        .draw(&mut display)
+                        .unwrap();
+
+                        // Display Selector
+                        match selection {
+                            DatetimeSelection::Hour => {
+                                Text::with_baseline(
+                                    "^^      ",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                            DatetimeSelection::Minute => {
+                                Text::with_baseline(
+                                    "   ^^   ",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                            _ => {
+                                Text::with_baseline(
+                                    "      ^^",
+                                    Point::new(0, 16),
+                                    text_style,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
+                            },
+                        }
+                    }
                 },
                 State::SettingAlarm => {
                     let alarm_time = ctx.shared.alarm_time.lock(|alarm_time| *alarm_time);
+                    let alarm_selection = ctx.shared.alarm_selection.lock(|selection| selection.unwrap_or(AlarmSelection::Hour));
+                    // Display Alarm
                     Text::with_baseline(
                         format!(
-                            "{}:{}:{}",
+                            "{:02}:{:02}:{:02}",
                             alarm_time.0,
                             alarm_time.1,
                             alarm_time.2,
                         ).as_str(),
                         Point::zero(),
                         text_style,
-                        Baseline::Middle,
+                        Baseline::Top,
                     )
                     .draw(&mut display)
                     .unwrap();
+
+                    // Display Alarm Selection
+                    match alarm_selection {
+                        AlarmSelection::Hour => {
+                            Text::with_baseline(
+                                "^^      ",
+                                Point::new(0, 16),
+                                text_style,
+                                Baseline::Top,
+                            )
+                            .draw(&mut display)
+                            .unwrap();
+                        },
+                        AlarmSelection::Minute => {
+                            Text::with_baseline(
+                                "   ^^   ",
+                                Point::new(0, 16),
+                                text_style,
+                                Baseline::Top,
+                            )
+                            .draw(&mut display)
+                            .unwrap();
+                        },
+                        _ => {
+                            Text::with_baseline(
+                                "      ^^",
+                                Point::new(0, 16),
+                                text_style,
+                                Baseline::Top,
+                            )
+                            .draw(&mut display)
+                            .unwrap();
+                        },
+                    }
                 },
                 State::Alarm => {
-                    // TODO: Display Time left in Alarm
+                    // Display time remaining in the alarm
+                    let remaining_time = ctx.shared.alarm_start.lock(|start| current_time - start.unwrap_or(current_time));
                     Text::with_baseline(
-                        format!("").as_str(),
+                        format!(
+                            "{:02}:{:02}:{:02}",
+                            remaining_time.0,
+                            remaining_time.1,
+                            remaining_time.2
+                        ).as_str(),
                         Point::zero(),
                         text_style,
                         Baseline::Middle,
@@ -329,9 +524,13 @@ mod app {
                     )
                     .draw(&mut display)
                     .unwrap();
-
-                    // TODO: Vibrate or something
                 },
+            }
+
+            if state == State::AlarmTriggered {
+                ctx.local.vibration_motor.set_high().unwrap();
+            } else {
+                ctx.local.vibration_motor.set_low().unwrap();
             }
 
             display.flush().await.unwrap();
@@ -349,6 +548,7 @@ mod app {
             alarm_selection,
             reference_time,
             reference_selection,
+            alarm_start,
             rtc,
             state,
             power_switch,
@@ -368,6 +568,7 @@ mod app {
             ctx.shared.alarm_selection,
             ctx.shared.reference_time,
             ctx.shared.reference_selection,
+            ctx.shared.alarm_start,
             ctx.shared.rtc,
             ctx.shared.state,
             ctx.shared.power_switch,
@@ -382,6 +583,7 @@ mod app {
             alarm_selection,
             reference_time,
             reference_selection,
+            alarm_start,
             rtc,
             state,
             power_switch,
@@ -394,7 +596,7 @@ mod app {
         | {
             // Power state transitions
             if power_switch.interrupt_status(Interrupt::EdgeHigh) {
-                // TODO: Turn on all other GPIO interrupts
+                disable_button_interrupts::spawn().unwrap();
                 *state = State::Time;
                 power_switch.clear_interrupt(Interrupt::EdgeHigh);
                 power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, false);
@@ -402,7 +604,7 @@ mod app {
                 power_switch_cooldown::spawn().unwrap();
                 return;
             } else if power_switch.interrupt_status(Interrupt::EdgeLow) {
-                // TODO: Turn off all other GPIO interrupts
+                enable_button_interrupts::spawn().unwrap();
                 *state = State::Sleep;
                 power_switch.clear_interrupt(Interrupt::EdgeLow);
                 power_switch.set_interrupt_enabled(Interrupt::EdgeHigh, false);
@@ -553,6 +755,7 @@ mod app {
             // Was the alarm button pressed
             if alarm_button.interrupt_status(Interrupt::EdgeHigh) {
                 *state = State::Alarm;
+                *alarm_start = Some(rtc.now().unwrap().into());
                 rtc.clear_interrupt();
                 rtc.schedule_alarm(DateTimeFilter {
                     year: None,
@@ -572,6 +775,28 @@ mod app {
         });
     }
 
+    /// Read the temperature and battery voltage every once in a while if we aren't sleeping
+    #[task(
+        shared = [
+            state,
+            temperature,
+            
+        ],
+        local = [
+            pin23,
+            adc,
+            temperature_sensor,
+            battery_reader,
+        ],
+        priority = 1
+    )]
+    async fn take_adc_measurements(mut ctx: take_adc_measurements::Context) {
+        if ctx.shared.state.lock(|state| *state != State::Sleep) {
+            ctx.local.pin23.set_high().unwrap();
+            
+        }
+    }
+
     /// Interrupt triggered when the alarm is triggered
     #[task(
         shared = [rtc, state],
@@ -586,7 +811,84 @@ mod app {
             rtc.clear_interrupt();
             rtc.disable_interrupt();
             rtc.disable_alarm();
+            if *state == State::Sleep {
+                enable_button_interrupts::spawn().unwrap();
+            }
             *state = State::AlarmTriggered;
+        });
+    }
+
+    /// Disable all button interrupts
+    #[task(
+        shared = [
+            forward_button,
+            back_button,
+            increment_button,
+            decrement_button,
+            edit_button,
+            alarm_button,
+        ],
+        priority = 2,
+    )]
+    async fn disable_button_interrupts(ctx: disable_button_interrupts::Context) {
+        (
+            ctx.shared.forward_button,
+            ctx.shared.back_button,
+            ctx.shared.increment_button,
+            ctx.shared.decrement_button,
+            ctx.shared.edit_button,
+            ctx.shared.alarm_button,
+        ).lock(|
+            forward_button,
+            back_button,
+            increment_button,
+            decrement_button,
+            edit_button,
+            alarm_button
+        | {
+            forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+            back_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+            increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+            decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+            edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+            alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, false);
+        });
+    }
+
+    /// Enable all button interrupts
+    #[task(
+        shared = [
+            forward_button,
+            back_button,
+            increment_button,
+            decrement_button,
+            edit_button,
+            alarm_button,
+        ],
+        priority = 2
+    )]
+    async fn enable_button_interrupts(ctx: enable_button_interrupts::Context) {
+        (
+            ctx.shared.forward_button,
+            ctx.shared.back_button,
+            ctx.shared.increment_button,
+            ctx.shared.decrement_button,
+            ctx.shared.edit_button,
+            ctx.shared.alarm_button,
+        ).lock(|
+            forward_button,
+            back_button,
+            increment_button,
+            decrement_button,
+            edit_button,
+            alarm_button,
+        | {
+            forward_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+            back_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+            increment_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+            decrement_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+            edit_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
+            alarm_button.set_interrupt_enabled(Interrupt::EdgeHigh, true);
         });
     }
 

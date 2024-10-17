@@ -1,43 +1,4 @@
-//!
-//! Watch is my dumb-watch project that I'm using to simply keep
-//! track of time
-//!
-
-#![no_std]
-
-extern crate alloc;
-
-use core::ops::Sub;
-
-use alloc::{format, string::String};
-
-use rp_pico::hal::rtc::{DateTime, DayOfWeek};
-
-pub mod peripherals;
-
-/// The current state of the watch
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum State {
-    /// The watch is in sleep state so it shouldn't show anything
-    Sleep,
-    /// Displaying the current clock time + calendar
-    Time,
-    /// Modifying the current clock time + calendar
-    EditTime,
-    /// Displaying the number of minutes and seconds to set an
-    /// alarm for
-    SettingAlarm,
-    /// Displaying the alarm screen
-    Alarm,
-    /// Displaying the alarm has triggered
-    AlarmTriggered,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Time
-    }
-}
+use std::ops::Sub;
 
 /// The currently selected value in the datetime to edit
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,6 +82,17 @@ impl AlarmSelection {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DayOfWeek {
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RealtimeDatetime {
     pub year: u16,
     pub month: u8,
@@ -134,20 +106,6 @@ pub struct RealtimeDatetime {
 impl Default for RealtimeDatetime {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl From<DateTime> for RealtimeDatetime {
-    fn from(value: DateTime) -> Self {
-        Self {
-            year: value.year,
-            month: value.month,
-            day: value.day,
-            day_of_week: value.day_of_week,
-            hour: value.hour,
-            minute: value.minute,
-            second: value.second,
-        }
     }
 }
 
@@ -169,18 +127,6 @@ impl RealtimeDatetime {
             (self.hour as u128) * 60 * 60 +
             (self.minute as u128) * 60 +
             (self.second as u128)
-    }
-
-    pub fn to_datetime(&self) -> DateTime {
-        DateTime {
-            year: self.year,
-            month: self.month,
-            day: self.day,
-            day_of_week: self.day_of_week,
-            hour: self.hour,
-            minute: self.minute,
-            second: self.second,
-        }
     }
 
     pub fn date(&self) -> String {
@@ -279,6 +225,98 @@ impl Sub for RealtimeDatetime {
             hours as u8,
             minutes as u8,
             seconds as u8,
+        )
+    }
+}
+
+pub fn add(left: u64, right: u64) -> u64 {
+    left + right
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_realtime_sub_different_seconds() {
+        let time1 = RealtimeDatetime {
+            year: 2024,
+            month: 1,
+            day: 1,
+            day_of_week: DayOfWeek::Monday,
+            hour: 0,
+            minute: 0,
+            second: 0,
+        };
+        let mut time2 = time1.clone();
+        time2.second = 30;
+
+        let difference = time2 - time1;
+        assert_eq!(
+            difference,
+            (0, 0, 30),
+        );
+    }
+
+    #[test]
+    fn test_realtime_sub_different_minutes() {
+        let time1 = RealtimeDatetime {
+            year: 2024,
+            month: 1,
+            day: 1,
+            day_of_week: DayOfWeek::Monday,
+            hour: 0,
+            minute: 0,
+            second: 0,
+        };
+        let mut time2 = time1.clone();
+        time2.minute = 1;
+
+        assert_eq!(
+            time2 - time1,
+            (0, 1, 0)
+        );
+    }
+
+    #[test]
+    fn test_realtime_sub_different_hours() {
+        let time1 = RealtimeDatetime {
+            year: 2024,
+            month: 1,
+            day: 1,
+            day_of_week: DayOfWeek::Monday,
+            hour: 0,
+            minute: 0,
+            second: 0,
+        };
+        let mut time2 = time1.clone();
+        time2.hour = 2;
+
+        assert_eq!(
+            time2 - time1,
+            (2, 0, 0)
+        )
+    }
+
+    #[test]
+    fn test_realtime_sub_wrapping_time() {
+        let time1 = RealtimeDatetime {
+            year: 2024,
+            month: 1,
+            day: 1,
+            day_of_week: DayOfWeek::Monday,
+            hour: 3,
+            minute: 20,
+            second: 30,
+        };
+        let mut time2 = time1.clone();
+        time2.hour = 4;
+        time2.minute = 10;
+        time2.second = 0;
+
+        assert_eq!(
+            time2 - time1,
+            (0, 49, 30)
         )
     }
 }

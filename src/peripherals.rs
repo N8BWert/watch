@@ -4,10 +4,9 @@
 
 use rp_pico::{
     hal::{
-        gpio::{
-            bank0::{Gpio0, Gpio10, Gpio11, Gpio12, Gpio13, Gpio14, Gpio15, Gpio18, Gpio19}, FunctionI2C, FunctionSio, Pin, PullDown, PullUp, SioInput
-        },
-        I2C,
+        adc::AdcPin, gpio::{
+            bank0::{Gpio0, Gpio10, Gpio11, Gpio12, Gpio13, Gpio14, Gpio15, Gpio16, Gpio18, Gpio19, Gpio23, Gpio26}, FunctionI2C, FunctionSio, Pin, PullDown, PullNone, PullUp, SioInput, SioOutput
+        }, I2C
     },
     pac::I2C1,
 };
@@ -45,3 +44,11 @@ pub type DecrementButton = Pin<Gpio13, FunctionSio<SioInput>, PullDown>;
 pub type EditButton = Pin<Gpio14, FunctionSio<SioInput>, PullDown>;
 /// The pin to start the alarm
 pub type AlarmButton = Pin<Gpio15, FunctionSio<SioInput>, PullDown>;
+/// The pin connected to the Vibration Motor
+pub type VibrationMotor = Pin<Gpio16, FunctionSio<SioOutput>, PullDown>;
+
+// A pin that puts the pico into a different power mode to increase the accuracy
+// of the ADC
+pub type Pin23 = Pin<Gpio23, FunctionSio<SioOutput>, PullDown>;
+// The ADC pin used to read the current voltage of the battery
+pub type BatteryReader = AdcPin<Pin<Gpio26, FunctionSio<SioInput>, PullNone>>;
