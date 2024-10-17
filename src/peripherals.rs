@@ -5,7 +5,7 @@
 use rp_pico::{
     hal::{
         gpio::{
-            bank0::{Gpio0, Gpio10, Gpio11, Gpio12, Gpio13, Gpio18, Gpio19}, FunctionI2C, FunctionSio, Pin, PullDown, PullUp, SioInput
+            bank0::{Gpio0, Gpio10, Gpio11, Gpio12, Gpio13, Gpio14, Gpio15, Gpio18, Gpio19}, FunctionI2C, FunctionSio, Pin, PullDown, PullUp, SioInput
         },
         I2C,
     },
@@ -35,9 +35,13 @@ pub type PowerSwitch = Pin<Gpio0, FunctionSio<SioInput>, PullDown>;
 
 /// The pin set to move forward in the current selection or interface
 pub type ForwardButton = Pin<Gpio10, FunctionSio<SioInput>, PullDown>;
-/// The pin set to mve backward in the current selection or interface
+/// The pin set to move backward in the current selection or interface
 pub type BackButton = Pin<Gpio11, FunctionSio<SioInput>, PullDown>;
 /// The pin set to increment the current selection
 pub type IncrementButton = Pin<Gpio12, FunctionSio<SioInput>, PullDown>;
 /// The pin set to decrement the current selection
 pub type DecrementButton = Pin<Gpio13, FunctionSio<SioInput>, PullDown>;
+/// The pin set to enter edit mode for the current selection
+pub type EditButton = Pin<Gpio14, FunctionSio<SioInput>, PullDown>;
+/// The pin to start the alarm
+pub type AlarmButton = Pin<Gpio15, FunctionSio<SioInput>, PullDown>;

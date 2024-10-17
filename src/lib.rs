@@ -7,17 +7,22 @@
 
 extern crate alloc;
 
+use core::ops::Sub;
+
 use alloc::{format, string::String};
 use rp_pico::hal::rtc::{DateTime, DayOfWeek};
 
 pub mod peripherals;
 
+/// The current state of the watch
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
     /// The watch is in sleep state so it shouldn't show anything
     Sleep,
     /// Displaying the current clock time + calendar
     Time,
+    /// Modifying the current clock time + calendar
+    EditTime,
     /// Displaying the number of minutes and seconds to set an
     /// alarm for
     SettingAlarm,
@@ -30,6 +35,77 @@ pub enum State {
 impl Default for State {
     fn default() -> Self {
         Self::Time
+    }
+}
+
+/// The currently selected value in the datetime to edit
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DatetimeSelection {
+    // The current year
+    Year,
+    // The current month
+    Month,
+    // The current day
+    Day,
+    // The current day of the week
+    DayOfWeek,
+    // The current hour
+    Hour,
+    // The current minute
+    Minute,
+    // The current second
+    Second,
+}
+
+impl DatetimeSelection {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Year => Self::Month,
+            Self::Month => Self::Day,
+            Self::Day => Self::DayOfWeek,
+            Self::DayOfWeek => Self::Hour,
+            Self::Hour => Self::Minute,
+            Self::Minute => Self::Second,
+            Self::Second => Self::Year,
+        }
+    }
+
+    pub fn last(self) -> Self {
+        match self {
+            Self::Year => Self::Second,
+            Self::Month => Self::Year,
+            Self::Day => Self::Month,
+            Self::DayOfWeek => Self::Day,
+            Self::Hour => Self::DayOfWeek,
+            Self::Minute => Self::Hour,
+            Self::Second => Self::Minute,
+        }
+    }
+}
+
+/// The currently selected value in the alarm to edit
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlarmSelection {
+    Hour,
+    Minute,
+    Second,
+}
+
+impl AlarmSelection {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Hour => Self::Minute,
+            Self::Minute => Self::Second,
+            Self::Second => Self::Hour,
+        }
+    }
+
+    pub fn last(self) -> Self {
+        match self {
+            Self::Hour => Self::Second,
+            Self::Minute => Self::Hour,
+            Self::Second => Self::Minute,
+        }
     }
 }
 
@@ -121,5 +197,49 @@ impl RealtimeDatetime {
 
     pub fn time(&self) -> String {
         format!("{}:{}:{}", self.hour, self.minute, self.second,)
+    }
+
+    pub fn increment(&mut self, selection: DatetimeSelection) {
+        match selection {
+            DatetimeSelection::Year => self.year += 1,
+            DatetimeSelection::Month => self.month = ((self.month + 1) % 12) + 1,
+            DatetimeSelection::Day => self.day = ((self.day + 1) % 31) + 1,
+            DatetimeSelection::DayOfWeek => {
+                self.day_of_week = match self.day_of_week {
+                    DayOfWeek::Monday => DayOfWeek::Tuesday,
+                    DayOfWeek::Tuesday => DayOfWeek::Wednesday,
+                    DayOfWeek::Wednesday => DayOfWeek::Thursday,
+                    DayOfWeek::Thursday => DayOfWeek::Friday,
+                    DayOfWeek::Friday => DayOfWeek::Saturday,
+                    DayOfWeek::Saturday => DayOfWeek::Sunday,
+                    DayOfWeek::Sunday => DayOfWeek::Monday,
+                }
+            },
+            DatetimeSelection::Hour => self.hour = (self.hour + 1) % 24,
+            DatetimeSelection::Minute => self.minute = (self.minute + 1) % 60,
+            DatetimeSelection::Second => self.second = (self.second + 1) % 60,
+        }
+    }
+
+    pub fn decrement(&mut self, selection: DatetimeSelection) {
+        match selection {
+            DatetimeSelection::Year => self.year = self.year.wrapping_sub(1),
+            DatetimeSelection::Month => self.month = self.month.checked_sub(1).unwrap_or(12),
+            DatetimeSelection::Day => self.day = self.day.checked_sub(1).unwrap_or(31),
+            DatetimeSelection::DayOfWeek => {
+                self.day_of_week = match self.day_of_week {
+                    DayOfWeek::Monday => DayOfWeek::Sunday,
+                    DayOfWeek::Tuesday => DayOfWeek::Monday,
+                    DayOfWeek::Wednesday => DayOfWeek::Tuesday,
+                    DayOfWeek::Thursday => DayOfWeek::Wednesday,
+                    DayOfWeek::Friday => DayOfWeek::Thursday,
+                    DayOfWeek::Saturday => DayOfWeek::Friday,
+                    DayOfWeek::Sunday => DayOfWeek::Saturday,
+                }
+            },
+            DatetimeSelection::Hour => self.hour = self.hour.checked_sub(1).unwrap_or(23),
+            DatetimeSelection::Minute => self.minute = self.minute.checked_sub(1).unwrap_or(59),
+            DatetimeSelection::Second => self.second = self.second.checked_sub(1).unwrap_or(59),
+        }
     }
 }
