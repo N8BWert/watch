@@ -296,7 +296,9 @@ mod app {
             alarm_selection,
             alarm_start,
             reference_time,
-            reference_selection
+            reference_selection,
+            temperature,
+            battery_level,
         ],
         local = [
             vibration_motor
@@ -531,6 +533,23 @@ mod app {
                 ctx.local.vibration_motor.set_high().unwrap();
             } else {
                 ctx.local.vibration_motor.set_low().unwrap();
+            }
+
+            if state != State::Sleep {
+                // TODO: Map Temperature From ADC Counts -> Temperatures
+                // TODO: Map Battery ADC Counts -> Battery Charge
+                Text::with_baseline(
+                    format!(
+                        "{}         {}",
+                        ctx.shared.temperature.lock(|temp| *temp),
+                        ctx.shared.battery_level.lock(|batt| *batt),
+                    ).as_str(),
+                    Point::zero(),
+                    text_style,
+                    Baseline::Bottom,
+                )
+                .draw(&mut display)
+                .unwrap();
             }
 
             display.flush().await.unwrap();
@@ -780,7 +799,7 @@ mod app {
         shared = [
             state,
             temperature,
-            
+            battery_level,
         ],
         local = [
             pin23,
@@ -793,7 +812,17 @@ mod app {
     async fn take_adc_measurements(mut ctx: take_adc_measurements::Context) {
         if ctx.shared.state.lock(|state| *state != State::Sleep) {
             ctx.local.pin23.set_high().unwrap();
-            
+            let temperature = ctx.local.adc.read(ctx.local.temperature_sensor).unwrap();
+            let battery_level = ctx.local.adc.read(ctx.local.battery_reader).unwrap();
+            ctx.local.pin23.set_low().unwrap();
+
+            (
+                ctx.shared.temperature,
+                ctx.shared.battery_level,
+            ).lock(|temp, batt_level| {
+                *temp = temperature;
+                *batt_level = battery_level;
+            });
         }
     }
 
