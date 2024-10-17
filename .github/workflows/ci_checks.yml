@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         # All generated code should be running on stable now
-        rust: [nightly, stable]
+        rust: [nightly]
         include:
           # Nightly is only for reference and allowed to fail
           - rust: nightly
@@ -42,6 +42,7 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: nightly
           components: clippy
           target: thumbv6m-none-eabi
       - run: cargo clippy --all-features -- --deny=warnings
@@ -54,6 +55,7 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: nightly  
           components: rustfmt
           target: thumbv6m-none-eabi
       - run: cargo fmt -- --check
